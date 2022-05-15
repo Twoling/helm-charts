@@ -9,6 +9,21 @@ replicas: 1
 extraEnvs:
   - name: "NODE_OPTIONS"
     value: "--max-old-space-size=1800"
+  - name: "KIBANA_ENCRYPTION_KEY"
+    valueFrom:
+      secretKeyRef:
+        name: kibana
+        key: encryptionkey
+  - name: ELASTICSEARCH_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: elastic-credentials
+        key: password
+  - name: ELASTICSEARCH_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: elastic-credentials
+        key: username
 #  - name: MY_ENVIRONMENT_VAR
 #    value: the_value_goes_here
 
@@ -22,7 +37,10 @@ envFrom: []
 # A list of secrets and their paths to mount inside the pod
 # This is useful for mounting certificates for security and for mounting
 # the X-Pack license
-secretMounts: []
+secretMounts:
+  - name: elastic-certificates-pem
+    secretName: elastic-certificate-pem
+    path: /usr/share/kibana/config/certs
 #  - name: kibana-keystore
 #    secretName: kibana-keystore
 #    path: /usr/share/kibana/data/kibana.keystore
@@ -53,7 +71,7 @@ resources:
     cpu: "1000m"
     memory: "2Gi"
 
-protocol: http
+protocol: https
 
 serverHost: "0.0.0.0"
 
@@ -61,7 +79,16 @@ healthCheckPath: "/app/kibana"
 
 # Allows you to add any config files in /usr/share/kibana/config/
 # such as kibana.yml
-kibanaConfig: {}
+kibanaConfig:
+  kibana.yml: |
+    server.ssl:
+      enabled: true
+      key: /usr/share/kibana/config/certs/elastic-certificate.pem
+      certificate: /usr/share/kibana/config/certs/elastic-certificate.pem
+    xpack.security.encryptionKey: ${KIBANA_ENCRYPTION_KEY}
+    elasticsearch.ssl:
+      certificateAuthorities: /usr/share/kibana/config/certs/elastic-certificate.pem
+      verificationMode: certificate
 #   kibana.yml: |
 #     key:
 #       nestedkey: value
