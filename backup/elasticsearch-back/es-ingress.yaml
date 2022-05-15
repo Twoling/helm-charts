@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+#  annotations:
+#    kubernetes.io/ingress.class: istio
+  name: es.zyuru.com
+spec:
+  ingressClassName: istio
+  rules:
+  - host: es.zyuru.com
+    http:
+      paths:
+      - path: /
+        backend:
+          service:
+            name: elasticsearch-master
+            port:
+              number: 9200
+        pathType: ImplementationSpecific
+  tls:
+  - hosts: 
+    - es.zyuru.com
+    secretName: zyuru.com-ssl

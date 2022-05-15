@@ -1,0 +1,26 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: myapp
+spec:
+  hosts:
+  - myapp.zyuru.com
+  - myapp.default.svc.cluster.local
+  gateways:
+  - istio-system/http-gateway
+  - mesh
+  http:
+  - match:
+    - gateways:
+      - istio-system/http-gateway
+    route:
+    - destination:
+        host: myapp.default.svc.cluster.local
+        subset: v1
+  - match:
+    - gateways:
+      - mesh
+    route:
+    - destination:
+        host: myapp.default.svc.cluster.local
+        subset: v3

@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: myapp-fat-v1
+  name: myapp-fat-v1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: myapp-fat-v1
+  template:
+    metadata:
+      labels:
+        app: myapp-fat-v1
+    spec:
+      imagePullSecrets:
+      - name: aliyun-cs
+      containers:
+      - image: registry.cn-shanghai.aliyuncs.com/ainaonao/myapp:v1
+        name: myapp-fat-v1
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: myapp-fat-v1
+  name: myapp-fat-v1
+spec:
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    app: myapp-fat-v1
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: myapp
+  name: myapp
+spec:
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    app: myapp
+  type: ClusterIP
