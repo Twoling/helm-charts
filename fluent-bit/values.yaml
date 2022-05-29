@@ -280,6 +280,16 @@ config:
   inputs: |
     [INPUT]
         Name tail
+        Path /var/log/containers/ingress-nginx-controller-*.log
+        Parser ngcontroller 
+        #multiline.parser ingress-nginx
+        Tag ingress-nginx.*
+        Key message
+        Mem_Buf_Limit 5MB
+        Skip_Long_Lines On
+
+    [INPUT]
+        Name tail
         Path /var/log/containers/*.log
         multiline.parser docker, cri
         Tag kube.*
@@ -287,26 +297,29 @@ config:
         Mem_Buf_Limit 5MB
         Skip_Long_Lines On
 
-    [INPUT]
-        Name tail
-        Path /var/log/containers/*ingress-nginx-controller*.log
-        Parser nginx
-        #multiline.parser docker, cri
-        Tag ingress-nginx.*
-        Key message
-        Mem_Buf_Limit 5MB
-        Skip_Long_Lines On
-
-    [INPUT]
-        Name systemd
-        Tag host.*
-        Systemd_Filter _SYSTEMD_UNIT=kubelet.service
-        Read_From_Tail On
-
   ## https://docs.fluentbit.io/manual/pipeline/filters
   filters: |
     [FILTER]
         Name kubernetes
+        Buffer_Size 4mb
+        Match ingress-nginx.*
+        Merge_Log On
+        Keep_Log Off
+        Annotations Off
+        Merge_Parser        ngcontroller
+        K8S-Logging.Parser On
+        K8S-Logging.Exclude On
+        Kube_URL            https://kubernetes.default.svc.cluster.local:443
+        Kube_CA_File        /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        Kube_Token_File     /var/run/secrets/kubernetes.io/serviceaccount/token
+        Use_Kubelet         false
+        Kubelet_Port        10250
+        #Kube_Tag_Prefix     kube.var.log.containers.
+        Kube_Tag_Prefix     ingress-nginx.var.log.containers.
+
+    [FILTER]
+        Name kubernetes
+        Buffer_Size 4mb
         Match kube.*
         Merge_Log On
         Keep_Log Off
@@ -319,31 +332,8 @@ config:
         Kubelet_Port        10250
         Kube_Tag_Prefix     kube.var.log.containers.
 
-    [FILTER]
-        Name kubernetes
-        Match ingress-nginx.*
-        Merge_Log On
-        Keep_Log Off
-        Annotations Off
-        K8S-Logging.Parser On
-        K8S-Logging.Exclude On
-        Kube_URL            https://kubernetes.default.svc.cluster.local:443
-        Kube_CA_File        /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-        Kube_Token_File     /var/run/secrets/kubernetes.io/serviceaccount/token
-        Use_Kubelet         false
-        Kubelet_Port        10250
-        Kube_Tag_Prefix     ingress-nginx.var.log.containers.
-
   ## https://docs.fluentbit.io/manual/pipeline/outputs
   outputs: |
-    [OUTPUT]
-        Name es
-        Match kube.*
-        Host elasticsearch-master.logging
-        Logstash_Prefix kube
-        Logstash_Format On
-        Retry_Limit False
-
     [OUTPUT]
         Name es
         Match ingress-nginx.*
@@ -351,14 +341,24 @@ config:
         Logstash_Prefix ingress-nginx
         Logstash_Format On
         Retry_Limit False
-
+        HTTP_User elastic
+        HTTP_Passwd elastic
+        net.keepalive Off
+        tls On
+        tls.verify Off
+ 
     [OUTPUT]
         Name es
-        Match host.*
+        Match kube.*
         Host elasticsearch-master.logging
+        Logstash_Prefix kube
         Logstash_Format On
-        Logstash_Prefix node
         Retry_Limit False
+        HTTP_User elastic
+        HTTP_Passwd elastic
+        tls On
+        tls.verify Off
+        net.keepalive Off
 
   ## https://docs.fluentbit.io/manual/pipeline/parsers
   customParsers: |
@@ -367,11 +367,14 @@ config:
         Format json
         Time_Keep Off
         Time_Key time
-        Time_Format %Y-%m-%dT%H:%M:%S.%L
+        Time_Format %Y-%m-%dT%H:%M:%S.%L%Z
     [PARSER]
-       Name   nginx
-       Format regex
-       Regex ^(?<remote>[^ ]*) (?<host>[^ ]*) (?<user>[^ ]*) \[(?<time>[^\]]*)\] "(?<method>\S+)(?: +(?<path>[^\"]*?)(?: +\S*)?)?" (?[^ ]*) (?<size>[^ ]*)(?: "(?<referer>[^\"]*)" "(?<agent>[^\"]*)")? \"-\"$ Time_Key time Time_Format %d/%b/%Y:%H:%M:%S %z
+        Name   ngcontroller
+        Format regex
+        #Regex ^(?<message>(?<remote>[^ ]*) - (?<user>[^ ]*) \[(?<time>[^\]]*)\] "(?<method>\S+)(?: +(?<path>[^\"]*?)(?: +\S*)?)?" (?<code>[^ ]*) (?<size>[^ ]*) "(?<referer>[^\"]*)" "(?<agent>[^\"]*)" (?<request_length>[^ ]*) (?<request_time>[^ ]*) \[(?<proxy_upstream_name>[^ ]*)\] \[(?<proxy_alternative_upstream_name>[^ ]*)\] (?<upstream_addr>[^ ]*) (?<upstream_response_length>[^ ]*) (?<upstream_response_time>[^ ]*) (?<upstream_status>[^ ]*) (?<req_id>[^ ]*).*)$
+        Regex ^(?<remote>[^ ]*) - (?<user>[^ ]*) \[(?<time>[^\]]*)\] "(?<method>\S+)(?: +(?<path>[^\"]*?)(?: +\S*)?)?" (?<code>[^ ]*) (?<size>[^ ]*) "(?<referer>[^\"]*)" "(?<agent>[^\"]*)" (?<request_length>[^ ]*) (?<request_time>[^ ]*) \[(?<proxy_upstream_name>[^ ]*)\] \[(?<proxy_alternative_upstream_name>[^ ]*)\] (?<upstream_addr>[^ ]*) (?<upstream_response_length>[^ ]*) (?<upstream_response_time>[^ ]*) (?<upstream_status>[^ ]*)  (?<req_id>[^ ])
+        #Time_Format %d/%b/%Y:%H:%M:%S %z
+
 
 
   # This allows adding more files with arbitary filenames to /fluent-bit/etc by providing key/value pairs.
@@ -396,9 +399,9 @@ daemonSetVolumes:
   - name: varlog
     hostPath:
       path: /var/log
-  - name: varlibdockercontainers
+  - name: varlibcontainers
     hostPath:
-      path: /var/lib/docker/containers
+      path: /var/log/containers/
   - name: etcmachineid
     hostPath:
       path: /etc/machine-id
@@ -407,8 +410,8 @@ daemonSetVolumes:
 daemonSetVolumeMounts:
   - name: varlog
     mountPath: /var/log
-  - name: varlibdockercontainers
-    mountPath: /var/lib/docker/containers
+  - name: varlibcontainers
+    mountPath: /var/log/containers/
     readOnly: true
   - name: etcmachineid
     mountPath: /etc/machine-id
