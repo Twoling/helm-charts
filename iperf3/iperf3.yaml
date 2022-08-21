@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: iperf3
+    version: v1
+  name: iperf3-v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: iperf3
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: iperf3
+        version: v1
+    spec:
+      containers:
+      - image: registry.cn-shanghai.aliyuncs.com/ainaonao/iperf3:v1.1
+        imagePullPolicy: IfNotPresent 
+        name: iperf3
+      imagePullSecrets:
+      - name: aliyun-cs
+#---
+#apiVersion: v1
+#kind: Service
+#metadata:
+#  labels:
+#    app: iperf3
+#  name: iperf3
+#spec:
+#  ports:
+#  - name: http
+#    port: 80
+#    protocol: TCP
+#    targetPort: 80
+#  selector:
+#    app: iperf3
+#  type: ClusterIP

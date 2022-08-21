@@ -81,6 +81,7 @@ healthCheckPath: "/app/kibana"
 # such as kibana.yml
 kibanaConfig:
   kibana.yml: |
+    i18n.locale: "zh-CN"
     server.ssl:
       enabled: true
       key: /usr/share/kibana/config/certs/elastic-certificate.pem

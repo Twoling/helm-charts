@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kube100-site
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      containers:
+      - name: c1
+        args:
+        - sleep
+        - "10000000"
+        image: alpine
+      - name: c2
+        image: alpine
+        command: ["/bin/sh"]
+        args: ["-c", "while true; do echi 1; sleep 1;done"]
